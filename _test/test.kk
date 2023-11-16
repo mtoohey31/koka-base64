@@ -48,9 +48,13 @@ fun main()
   assert_eq("", encode(Nil))
   assert_eq("AxVV", encode([3.int8, 21.int8, 85.int8]))
   assert_eq("MR8HPw==", encode([49.int8, 31.int8, 7.int8, 63.int8]))
+  assert_eq("QH9/f38=", encode([64.int8, 188.int8, 201.int8, 144.int8, 213.int8]))
+  assert_eq("MR8HPw", encode([49.int8, 31.int8, 7.int8, 63.int8], padding=False))
+  assert_eq("QH9/f38", encode([64.int8, 188.int8, 201.int8, 144.int8, 213.int8], padding=False))
 
   assert_eq(Nil, decode(""))
   assert_eq([3.int8, 21.int8, 85.int8], decode("AxVV"))
+  assert_eq([49.int8, 31.int8, 7.int8, 63.int8], decode("MR8HPw", padding=False))
   assert_eq([49.int8, 31.int8, 7.int8, 63.int8], decode("MR8HPw=="))
 
   assert_eq("asdf", encode(decode("asdf")))
@@ -60,5 +64,3 @@ fun main()
   assert_eq(Nil, decode(encode(Nil)))
 
   // TODO: Test exceptions.
-
-  // TODO: Test padding once it's implemented.

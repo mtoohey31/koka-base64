@@ -1,7 +1,5 @@
 module base64
 
-// TODO: Support optional arguments to disable padding.
-
 // External support
 
 inline fip extern (-) : (int8, int8) -> int8
@@ -90,11 +88,7 @@ fun encode-int6(i : int8) : exn char
     62 -> '+'
     63 -> '/'
 
-pub fun encode(b : vector<int8>) : string
-  // PERF: Avoid list allocation.
-  encode(list(b))
-
-pub fun encode(b : list<int8>) : string
+pub fun encode(b : list<int8>, padding : bool = True) : string
   // unsafe-no-exn is safe because the bitwise operations ensure that the values
   // passed to encode-int6 are within range.
   match b
@@ -103,23 +97,30 @@ pub fun encode(b : list<int8>) : string
       val x2 = ((a & 3.int8) <<. 4.int8) |. (b >>. 4.int8)
       val x3 = ((b & 15.int8) <<. 2.int8) |. (c >>. 6.int8)
       val x4 = c & 63.int8
-      unsafe-no-exn
-        string([x1, x2, x3, x4].map(encode-int6)) ++ encode(xx)
+      val chars = unsafe-no-exn
+        [x1, x2, x3, x4].map(encode-int6)
+      string(chars) ++ encode(xx, padding)
 
     Cons(a, Cons(b, Nil)) ->
       val x1 = a >>. 2.int8
       val x2 = ((a & 3.int8) <<. 4.int8) |. (b >>. 4.int8)
       val x3 = (b & 15.int8) <<. 2.int8
-      unsafe-no-exn
-        string([x1, x2, x3].map(encode-int6)) ++ "="
+      val chars = unsafe-no-exn
+        [x1, x2, x3].map(encode-int6)
+      string(chars) ++ (if padding then "=" else "")
 
     Cons(a, Nil) ->
       val x1 = a >>. 2.int8
       val x2 = (a & 3.int8) <<. 4.int8
-      unsafe-no-exn
-        string([x1, x2].map(encode-int6)) ++ "=="
+      val chars = unsafe-no-exn
+        [x1, x2].map(encode-int6)
+      string(chars) ++ (if padding then "==" else "")
 
     Nil -> ""
+
+pub fun encode(b : vector<int8>, padding : bool = True) : string
+  // PERF: Avoid list allocation.
+  encode(list(b), padding)
 
 // Decoding
 
@@ -191,23 +192,22 @@ fun decode-char(c : char) : exn int8
     '/' -> 63.int8
     _ -> throw("decode: invalid character")
 
-pub fun decode'(s : string) : <div, exn> vector<int8>
-  // PERF: Avoid list allocation.
-  vector(decode(s))
-
-fun decode(x1 : int8, x2 : int8) : list<int8>
+fun assemble(x1 : int8, x2 : int8) : list<int8>
   [(x1 <<. 2.int8) |. (x2 >>. 4.int8)]
 
-fun decode(x1 : int8, x2 : int8, x3 : int8) : list<int8>
-  decode(x1, x2) ++ [((x2 & 15.int8) <<. 4.int8) |. (x3 >>. 2.int8)]
+fun assemble(x1 : int8, x2 : int8, x3 : int8) : list<int8>
+  assemble(x1, x2) ++ [((x2 & 15.int8) <<. 4.int8) |. (x3 >>. 2.int8)]
 
-fun decode(x1 : int8, x2 : int8, x3 : int8, x4 : int8) : list<int8>
-  decode(x1, x2, x3) ++ [((x3 & 3.int8) <<. 6.int8) |. x4]
+fun assemble(x1 : int8, x2 : int8, x3 : int8, x4 : int8) : list<int8>
+  assemble(x1, x2, x3) ++ [((x3 & 3.int8) <<. 6.int8) |. x4]
 
-pub fun decode(s : string) : <div, exn> list<int8>
-  decode(slice(s))
+pub fun decode(s : string, padding : bool = True) : <div, exn> list<int8>
+  decode(slice(s), padding)
 
-pub fun decode(s : sslice) : <div, exn> list<int8>
+pub fun decode(s : sslice, padding : bool = True) : <div, exn> list<int8>
+  decode-rec(s, padding)
+
+fun decode-rec(s : sslice, padding : bool) : <div, exn> list<int8>
   match next(s)
     Nothing -> Nil
     Just((a, s')) ->
@@ -216,15 +216,20 @@ pub fun decode(s : sslice) : <div, exn> list<int8>
         Nothing -> throw("decode: invalid length")
         Just((b, s'')) ->
           val x2 = decode-char(b)
-          if s''.count == 2 && s''.string == "==" then return decode(x1, x2)
+          if padding && s''.count == 2 && s''.string == "==" then
+            return assemble(x1, x2)
           match next(s'')
-            Nothing -> decode(x1, x2)
+            Nothing -> assemble(x1, x2)
             Just((c, s''')) ->
               val x3 = decode-char(c)
-              if s'''.count == 1 && s'''.string == "=" then
-                return decode(x1, x2, x3)
+              if padding && s'''.count == 1 && s'''.string == "=" then
+                return assemble(x1, x2, x3)
               match next(s''')
-                Nothing -> decode(x1, x2, x3)
+                Nothing -> assemble(x1, x2, x3)
                 Just((d, s'''')) ->
                   val x4 = decode-char(d)
-                  decode(x1, x2, x3, x4) ++ decode(s'''')
+                  assemble(x1, x2, x3, x4) ++ decode-rec(s'''', padding)
+
+pub fun decode'(s : string, padding : bool = True) : <div, exn> vector<int8>
+  // PERF: Avoid list allocation.
+  vector(decode(s, padding))
