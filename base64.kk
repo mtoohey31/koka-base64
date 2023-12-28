@@ -65,73 +65,39 @@ pub fun encode(b : vector<int8>, padding : bool = True) : string
 
 // Decoding
 
+val values = {
+  fun range(a : int8, b : int8) : div list<int8>
+    if a <= b then
+      return Cons(a, range(a + 1.int8, b))
+    else
+      return Nil
+
+  unsafe-total
+    concat([
+      replicate(-1.int8, int('+')),
+      [62.int8],
+      replicate(-1.int8, int('/') - int('+') - 1),
+      [63.int8],
+      replicate(-1.int8, int('0') - int('/') - 1),
+      range(52.int8, 61.int8),
+      replicate(-1.int8, int('A') - int('9') - 1),
+      range(0.int8, 25.int8),
+      replicate(-1.int8, int('a') - int('Z') - 1),
+      range(26.int8, 51.int8)
+    ])
+}
+
+val invalid-char-exn = Exception("base64/decode: invalid character", ExnRange)
+
 fun decode-char(c : char) : exn int8
-  match c
-    'A' -> 0.int8
-    'B' -> 1.int8
-    'C' -> 2.int8
-    'D' -> 3.int8
-    'E' -> 4.int8
-    'F' -> 5.int8
-    'G' -> 6.int8
-    'H' -> 7.int8
-    'I' -> 8.int8
-    'J' -> 9.int8
-    'K' -> 10.int8
-    'L' -> 11.int8
-    'M' -> 12.int8
-    'N' -> 13.int8
-    'O' -> 14.int8
-    'P' -> 15.int8
-    'Q' -> 16.int8
-    'R' -> 17.int8
-    'S' -> 18.int8
-    'T' -> 19.int8
-    'U' -> 20.int8
-    'V' -> 21.int8
-    'W' -> 22.int8
-    'X' -> 23.int8
-    'Y' -> 24.int8
-    'Z' -> 25.int8
-    'a' -> 26.int8
-    'b' -> 27.int8
-    'c' -> 28.int8
-    'd' -> 29.int8
-    'e' -> 30.int8
-    'f' -> 31.int8
-    'g' -> 32.int8
-    'h' -> 33.int8
-    'i' -> 34.int8
-    'j' -> 35.int8
-    'k' -> 36.int8
-    'l' -> 37.int8
-    'm' -> 38.int8
-    'n' -> 39.int8
-    'o' -> 40.int8
-    'p' -> 41.int8
-    'q' -> 42.int8
-    'r' -> 43.int8
-    's' -> 44.int8
-    't' -> 45.int8
-    'u' -> 46.int8
-    'v' -> 47.int8
-    'w' -> 48.int8
-    'x' -> 49.int8
-    'y' -> 50.int8
-    'z' -> 51.int8
-    '0' -> 52.int8
-    '1' -> 53.int8
-    '2' -> 54.int8
-    '3' -> 55.int8
-    '4' -> 56.int8
-    '5' -> 57.int8
-    '6' -> 58.int8
-    '7' -> 59.int8
-    '8' -> 60.int8
-    '9' -> 61.int8
-    '+' -> 62.int8
-    '/' -> 63.int8
-    _ -> throw("decode: invalid character")
+  // TODO: Remove manual bounds checking once C and JS backend bounds checking
+  // is fixed upstream.
+  val i = int(c)
+  if 0 > i || i >= values.length then
+    throw-exn(invalid-char-exn)
+  match values[int(c)]
+    Just(x) -> if x != -1.int8 then x else throw-exn(invalid-char-exn)
+    Nothing -> throw-exn(invalid-char-exn)
 
 fun assemble(x1 : int8, x2 : int8) : list<int8>
   [(x1 <<. 2.int8) |. (x2 >>. 4.int8)]
@@ -154,7 +120,7 @@ fun decode-rec(s : sslice, padding : bool) : <div, exn> list<int8>
     Just((a, s')) ->
       val x1 = decode-char(a)
       match next(s')
-        Nothing -> throw("decode: invalid length")
+        Nothing -> throw("base64/decode: invalid length")
         Just((b, s'')) ->
           val x2 = decode-char(b)
           if padding && s''.count == 2 && s''.string == "==" then
