@@ -2,9 +2,6 @@ module base64
 
 // External support
 
-inline fip extern (-) : (int8, int8) -> int8
-  inline "(#1 - #2)"
-
 inline fip extern (<<.) : (int8, int8) -> int8
   c  inline "((int8_t)((uint8_t)#1 << #2))"
   js inline "(#1 << #2)"

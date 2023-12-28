@@ -9,10 +9,6 @@ inline extern exit : (int32) -> div ()
   js inline "process.exit(#1)"
   cs inline "Environment.Exit(#1)"
 
-inline fip extern (==) : (int8, int8) -> bool
-  inline "(#1 == #2)"
-  js inline "(#1 === #2)"
-
 inline extern inject-console : forall<e, a> (action : () -> e a) -> <console|e> a
   inline "#1"
 
